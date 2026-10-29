@@ -1,0 +1,118 @@
+# Odia Speech & Dialect Pipeline Configuration (MLX)
+
+audio:
+  src_dir: "./data/raw_audio"
+  processed_dir: "./data/processed_audio"
+  sample_rate: 24000            # Standard sample rate (Hz)
+  target_lufs: -20.0            # Target integrated loudness (LUFS)
+  peak_limit_dbfs: -1.5         # Peak ceiling to prevent clipping (dBFS)
+  min_duration_sec: 1.5         # Lower duration bound (sec)
+  max_duration_sec: 12.0        # Upper duration bound (sec)
+  pad_start_ms: 150             # Leading silence padding (ms)
+  pad_end_ms: 250               # Trailing silence padding (ms) for word-final [ɔ]
+  vad_silence_threshold_ms: 350 # Minimum silence duration to trigger split (ms)
+  vad_energy_threshold: 0.45
+
+api:
+  model_api_key: "${HF_TOKEN}"
+  hf_token: "${HF_TOKEN}"
+
+# Active base model: 'qwen_72b' or 'gemma_32b_it'
+base_model: "qwen_72b"
+
+models:
+  qwen_72b:
+    name: "Qwen 2.5 72B Instruct"
+    mlx_repo: "mlx-community/Qwen2.5-72B-Instruct-4bit"
+    hf_repo: "Qwen/Qwen2.5-72B-Instruct"
+    quantization: "4bit"
+    context_window: 4096
+    chat_template: "chatml"
+
+  gemma_32b_it:
+    name: "Gemma 32B IT (Gemma 2 27B/32B-IT)"
+    mlx_repo: "mlx-community/gemma-2-27b-it-4bit"
+    hf_repo: "google/gemma-2-27b-it"
+    quantization: "4bit"
+    context_window: 4096
+    chat_template: "gemma"
+
+lora:
+  adapter_dir: "./data/adapters/lora"
+  rank: 16                      # LoRA rank r
+  alpha: 32.0                   # Scaling factor alpha
+  dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  num_layers: 16                # Top layers to adapt (-1 for all)
+  batch_size: 2
+  grad_accumulation_steps: 4
+  learning_rate: 1.0e-4
+  iters: 1500
+  optimizer: "adamw"
+  steps_per_report: 10
+  steps_per_eval: 100
+  save_every: 250
+  grad_checkpoint: true
+  clear_cache_threshold: 0.8
+  max_seq_length: 2048
+
+full_fine_tune:
+  checkpoint_dir: "./data/checkpoints/full_ft"
+  num_layers: 8                 # Top layers to update (-1 for all)
+  batch_size: 1
+  grad_accumulation_steps: 8
+  learning_rate: 1.5e-5         # Lower learning rate for full weight updates
+  iters: 1000
+  optimizer: "adamw"
+  steps_per_report: 10
+  steps_per_eval: 100
+  save_every: 200
+  grad_checkpoint: true
+  clear_cache_threshold: 0.85
+  max_seq_length: 2048
+
+dialects:
+  active_dialects:
+    - id: "or_std"
+      name: "Standard Coastal Odia"
+      tag: "<|or_std|>"
+      schwa_retention: true
+    - id: "or_sbp"
+      name: "Western Odia (Sambalpuri)"
+      tag: "<|or_sbp|>"
+      schwa_retention: false
+    - id: "or_bam"
+      name: "Southern Odia (Berhampuri)"
+      tag: "<|or_bam|>"
+      schwa_retention: true
+    - id: "or_bls"
+      name: "Northern Odia (Baleswari)"
+      tag: "<|or_bls|>"
+      schwa_retention: true
+  default_dialect: "or_std"
+
+dataset:
+  manifest_dir: "./data/manifests"
+  train_manifest: "./data/manifests/train.jsonl"
+  valid_manifest: "./data/manifests/valid.jsonl"
+  test_manifest: "./data/manifests/test.jsonl"
+  train_ratio: 0.80
+  valid_ratio: 0.10
+  test_ratio: 0.10
+  seed: 42
+
+eval:
+  golden_manifest: "./data/manifests/eval_golden_odia.jsonl"
+  results_dir: "./data/eval_results"
+  max_cer: 0.038               # Character Error Rate threshold (< 3.8%)
+  max_wer: 0.095               # Word Error Rate threshold (< 9.5%)
+  target_npvi_min: 32.0        # nPVI syllable rhythm lower bound
+  target_npvi_max: 46.0        # nPVI syllable rhythm upper bound
+  min_schwa_pass_rate: 0.90    # Formant check on final [ɔ] vowel
